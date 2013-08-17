@@ -1,6 +1,6 @@
 guile-dbd-sqlite3
 =================
 
-Guile-dbi database driver for sqlite version 3
+[[http://home.gna.org/guile-dbi/|Guile-dbi]] database driver for sqlite version 3
 
-Sourcecode that went into the officially hosted guile-dbd-sqlite3-2.1.3, with better code-formatting and maybe a few small fixes.
+Sourcecode that went into the officially hosted guile-dbd-sqlite3-2.1.3, with more standards compliant code-formatting and maybe a few small fixes.
