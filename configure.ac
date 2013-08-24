@@ -1,7 +1,7 @@
 # configure.ac - Configure script for the guile-dbd-sqlite3.
 # Copyright (C) 2004, 2005 Free Software Foundation, Inc.
 # Written by Maurizio Boriani <baux@member.fsf.org>
-# Edited by sph (email: tantalum@online.de, http://sph-info.eu)
+# Edited by (jkal@posteo.eu, https://github.com/jkalbhenn)
 #
 # This file is part of the guile-dbd-sqlite3.
 #

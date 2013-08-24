@@ -1,5 +1,5 @@
 /* guile-dbd-sqlite3.c - main source file
- * Copyright (C) 2009,2010,2011,2012 sph (email: tantalum@online.de, http://sph-info.eu)
+ * Copyright (C) 2009-2013 (jkal@posteo.eu, https://github.com/jkalbhenn)
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by
