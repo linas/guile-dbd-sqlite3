@@ -5,7 +5,7 @@
 (define db-path (tmpnam))
 
 (define db-obj
- (dbi-open "sqlite3" db-path))
+  (dbi-open "sqlite3" db-path))
 
 (display "test 1 . create table")
 (newline)
