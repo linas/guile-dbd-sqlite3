@@ -13,235 +13,170 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, see <http://www.gnu.org/licenses/>. */
+
 #include <guile-dbi/guile-dbi.h>
 #include <libguile.h>
 #include <sqlite3.h>
 #include <errno.h>
 
-#define SET_DBH_STATUS(_K, _V)			\
-  (* dbh).status = scm_cons(			\
-    scm_from_int(_K),				\
-    scm_from_locale_string(_V)			\
-    );
-
-#define b0 void
-#define b8 char
-#define b32 int
-
-b0 __sqlite3_make_g_db_handle(gdbi_db_handle_t *);
-b0 __sqlite3_close_g_db_handle(gdbi_db_handle_t *);
-b0 __sqlite3_query_g_db_handle(gdbi_db_handle_t *, b8 *);
-SCM __sqlite3_getrow_g_db_handle(gdbi_db_handle_t *);
+void __sqlite3_make_g_db_handle(gdbi_db_handle_t *dbh);
+void __sqlite3_close_g_db_handle(gdbi_db_handle_t *dbh);
+void __sqlite3_query_g_db_handle(gdbi_db_handle_t *dbh, char *query_str);
+SCM __sqlite3_getrow_g_db_handle(gdbi_db_handle_t *dbh);
+SCM status_cons(int code, char *message);
 
 typedef struct{
-  sqlite3 * sqlite3_obj;
-  sqlite3_stmt * stmt;
+  sqlite3 *sqlite3_obj;
+  sqlite3_stmt *stmt;
 } gdbi_sqlite3_ds_t;
 
+SCM status_cons(int code, char *message)
+{
+  return(scm_cons(scm_from_int(code), scm_from_locale_string(message)));
+}
 
-b0 __sqlite3_make_g_db_handle(gdbi_db_handle_t * dbh) {
-  (* dbh).closed = SCM_BOOL_T;
-
-  //check presence of connection string
-  if(scm_equal_p(scm_string_p((* dbh).constr), SCM_BOOL_F) == SCM_BOOL_T) {
-    SET_DBH_STATUS(1, "missing connection string");
-
+void __sqlite3_make_g_db_handle(gdbi_db_handle_t *dbh)
+{
+  dbh->closed = SCM_BOOL_T;
+  /* check presence of connection string */
+  if (scm_equal_p(scm_string_p(dbh->constr), SCM_BOOL_F) == SCM_BOOL_T) {
+    dbh->status = status_cons(1, "missing connection string");
     return;
   }
-
-  b8 * db_name = scm_to_locale_string((* dbh).constr);
-
-  gdbi_sqlite3_ds_t * db_info = (gdbi_sqlite3_ds_t *) malloc(sizeof(gdbi_sqlite3_ds_t));
-
-  if(db_info == 0) {
-    SET_DBH_STATUS(1, "out of memory");
-
+  char *db_name = scm_to_locale_string(dbh->constr);
+  gdbi_sqlite3_ds_t *db_info = malloc(sizeof(gdbi_sqlite3_ds_t));
+  if (db_info == NULL) {
+    dbh->status = status_cons(1, "out of memory");
     return;
   }
-
-  b8 tres = sqlite3_open(
-    db_name,
-    &((* db_info).sqlite3_obj)
-    );
-
-  if(tres != SQLITE_OK) {
-    SET_DBH_STATUS(1, sqlite3_errmsg((* db_info).sqlite3_obj));
-    (* db_info).sqlite3_obj = 0;
+  char tres = sqlite3_open(db_name, &(db_info->sqlite3_obj));
+  if (tres != SQLITE_OK) {
+    dbh->status = status_cons(1, sqlite3_errmsg(db_info->sqlite3_obj));
     free(db_info);
-    (* dbh).db_info = 0;
-
+    dbh->db_info = NULL;
     return;
   }
-
-  (* dbh).db_info = db_info;
-
-  SET_DBH_STATUS(0, "db connected");
-  (* dbh).closed = SCM_BOOL_F;
-
-  return;
+  db_info->stmt = NULL;
+  dbh->db_info = db_info;
+  dbh->status = status_cons(0, "db connected");
+  dbh->closed = SCM_BOOL_F;
 }
 
-
-b0 __sqlite3_close_g_db_handle(gdbi_db_handle_t * dbh) {
-  //check presence of db object
-  if((* dbh).db_info == 0) {
-    if(!(* dbh).in_free) {
-      SET_DBH_STATUS(1, "dbd info not found");
-    }
-
+void __sqlite3_close_g_db_handle(gdbi_db_handle_t *dbh)
+{
+  /* check presence of db object */
+  if (dbh->db_info == NULL) {
+    if (!dbh->in_free)
+      dbh->status = status_cons(1, "dbd info not found");
     return;
   }
-
-  gdbi_sqlite3_ds_t * db_info = (* dbh).db_info;
-
-  if((* db_info).sqlite3_obj == 0) {
-    if(!(* dbh).in_free) {
-      SET_DBH_STATUS(1, "dbi connection already closed");
-      free((* dbh).db_info);
-      (* dbh).db_info = 0;
-
-      return;
-    }
+  if (!dbh->in_free) {
+    gdbi_sqlite3_ds_t *db_info = dbh->db_info;
+    sqlite3_finalize(db_info->stmt);
+    sqlite3_close_v2(db_info->sqlite3_obj);
+    free(dbh->db_info);
+    dbh->db_info = NULL;
+    dbh->closed = SCM_BOOL_T;
+    dbh->status = status_cons(0, "dbi closed");
   }
-
-  sqlite3_close(
-    (* db_info).sqlite3_obj
-    );
-
-  free((* dbh).db_info);
-  (* dbh).db_info = 0;
-
-  (* dbh).closed = SCM_BOOL_T;
-
-  if(!(* dbh).in_free) { SET_DBH_STATUS(0, "dbi closed"); }
-
-  return;
 }
 
-
-b0 __sqlite3_query_g_db_handle(gdbi_db_handle_t * dbh, b8 * query_str) {
-  if((* dbh).db_info == 0) {
-    SET_DBH_STATUS(1, "invalid dbi connection");
-
+void __sqlite3_query_g_db_handle(gdbi_db_handle_t *dbh, char *query_str)
+{
+  if (dbh->db_info == NULL) {
+    dbh->status = status_cons(1, "invalid dbi connection");
     return;
   }
-
-  gdbi_sqlite3_ds_t * db_info = (* dbh).db_info;
-  (* db_info).stmt = 0;
-
-  //clear previous result
-  if((* db_info).stmt != 0) {
-    sqlite3_finalize((* db_info).stmt);
-    (* db_info).stmt = 0;
-  }
-
-  sqlite3_stmt * stmt;
-  b8 tres = sqlite3_prepare_v2((* db_info).sqlite3_obj, query_str, -1, &stmt, 0);
-  if(tres != SQLITE_OK) {
-    SET_DBH_STATUS(1, sqlite3_errmsg((* db_info).sqlite3_obj));
-
+  gdbi_sqlite3_ds_t *db_info = dbh->db_info;
+  sqlite3_finalize(db_info->stmt);
+  db_info->stmt = NULL;
+  sqlite3_stmt *stmt;
+  char tres = sqlite3_prepare_v2(db_info->sqlite3_obj,
+				 query_str, -1, &stmt, NULL);
+  if (tres != SQLITE_OK) {
+    dbh->status = status_cons(1, sqlite3_errmsg(db_info->sqlite3_obj));
     return;
   }
-
-  //test if sqlite3_step runs successful
+  /* test if sqlite3_step runs successful */
   tres = sqlite3_step(stmt);
-  if((tres != SQLITE_ROW) && (tres != SQLITE_DONE) && (tres != SQLITE_OK)) {
-    SET_DBH_STATUS(1, sqlite3_errmsg((* db_info).sqlite3_obj));
-
+  if ((tres != SQLITE_ROW) && (tres != SQLITE_DONE) && (tres != SQLITE_OK)) {
+    dbh->status = status_cons(1, sqlite3_errmsg(db_info->sqlite3_obj));
     return;
   }
   sqlite3_reset(stmt);
-
-  (* db_info).stmt = stmt;
-  SET_DBH_STATUS(0, "query ok");
-
-  return;
+  db_info->stmt = stmt;
+  dbh->status = status_cons(0, "query ok");
 }
 
-
-SCM __sqlite3_getrow_g_db_handle(gdbi_db_handle_t * dbh) {
-  gdbi_sqlite3_ds_t * db_info = (* dbh).db_info;
-
-  if(db_info == 0) {
-    SET_DBH_STATUS(1, "invalid dbi connection");
-
+SCM __sqlite3_getrow_g_db_handle(gdbi_db_handle_t *dbh)
+{
+  gdbi_sqlite3_ds_t *db_info = dbh->db_info;
+  if (db_info == NULL) {
+    dbh->status = status_cons(1, "invalid dbi connection");
     return(SCM_BOOL_F);
   }
-
-#define STMT (* db_info).stmt
-
-  if(STMT == 0) {
-    SET_DBH_STATUS(1, "missing query result");
-
+  if (db_info->stmt == NULL) {
+    dbh->status = status_cons(1, "missing query result");
     return(SCM_BOOL_F);
   }
-
   SCM res_row = SCM_EOL;
   SCM cur_val;
-
-  b8 tres = sqlite3_step(STMT);
-
-  //row to scheme list
-  if(tres == SQLITE_ROW) {
-    b32 col_count = sqlite3_column_count(STMT);
-    b32 cur_col_idx = 0;
-    b8 col_type;
-
+  char tres = sqlite3_step(db_info->stmt);
+  /* row to scheme list */
+  if (tres == SQLITE_ROW) {
+    int col_count = sqlite3_column_count(db_info->stmt);
+    int cur_col_idx = 0;
+    char col_type;
     while(cur_col_idx < col_count) {
-      col_type = sqlite3_column_type(STMT, cur_col_idx);
-      if(col_type == SQLITE_INTEGER) {
-        cur_val = scm_from_long(sqlite3_column_int(STMT, cur_col_idx));
-      }
-      else if(col_type == SQLITE_FLOAT) {
-        cur_val = scm_from_double(sqlite3_column_double(STMT, cur_col_idx));
-      }
-      else if(col_type == SQLITE_TEXT) {
-        cur_val = scm_from_locale_string(sqlite3_column_text(STMT, cur_col_idx));
-      }
-      else if(col_type == SQLITE_BLOB) {
-        SCM blob_size = scm_from_int32(sqlite3_column_bytes(STMT, cur_col_idx));
+      col_type = sqlite3_column_type(db_info->stmt, cur_col_idx);
+      if (col_type == SQLITE_INTEGER) {
+        cur_val = scm_from_long(sqlite3_column_int(db_info->stmt,
+						   cur_col_idx));
+      } else if (col_type == SQLITE_FLOAT) {
+        cur_val = scm_from_double(sqlite3_column_double(db_info->stmt,
+							cur_col_idx));
+      } else if (col_type == SQLITE_TEXT) {
+        cur_val = scm_from_locale_string(sqlite3_column_text(db_info->stmt,
+							     cur_col_idx));
+      } else if (col_type == SQLITE_BLOB) {
+        SCM blob_size = scm_from_int32(sqlite3_column_bytes(db_info->stmt,
+							    cur_col_idx));
         cur_val = scm_make_u8vector(blob_size, 0);
-        if(blob_size > 0) {
-          b8 * blob = (b8 *)sqlite3_column_blob(STMT, cur_col_idx);
+        if (blob_size > 0) {
+          char *blob = (char *)sqlite3_column_blob(db_info->stmt, cur_col_idx);
           scm_t_array_handle array_handle;
           size_t val_size, i; ssize_t val_step;
-          scm_t_uint8 * elt = scm_u8vector_writable_elements(cur_val, &array_handle, &val_size, &val_step);
-          for (i = 0; i < val_size; i++, elt += val_step) { elt = *(blob + i); }
+          scm_t_uint8 *elt = scm_u8vector_writable_elements(cur_val,
+							    &array_handle,
+							    &val_size,
+							    &val_step);
+          for (i = 0; i < val_size; i++, elt += val_step)
+	    elt = *(blob + i);
           scm_array_handle_release(&array_handle);
         }
-      }
-      else if(col_type == SQLITE_NULL) {
+      } else if (col_type == SQLITE_NULL) {
         cur_val = SCM_BOOL_F;
-      }
-      else{
-        SET_DBH_STATUS(1, "unknown field type");
-
+      } else {
+        dbh->status = status_cons(1, "unknown field type");
         return(SCM_EOL);
       }
-      res_row = scm_append(scm_list_2(
-          res_row,
-          scm_list_1(scm_cons(
-              scm_from_locale_string(sqlite3_column_name(STMT, cur_col_idx)),
-              cur_val))));
-
-      cur_col_idx += 1;
+      res_row
+	= scm_append(scm_list_2(res_row,
+				scm_list_1(scm_cons(scm_from_locale_string(sqlite3_column_name(db_info->stmt,
+											       cur_col_idx)),
+						    cur_val))));
+      cur_col_idx++;
     }
-  }
-  else if(tres == SQLITE_DONE) {
-    SET_DBH_STATUS(1, "no more rows to get");
-
+  } else if (tres == SQLITE_DONE) {
+    dbh->status = status_cons(1, "no more rows to get");
+    return(SCM_BOOL_F);
+  } else {
+    dbh->status = status_cons(1, sqlite3_errmsg(db_info->sqlite3_obj));
+    /* probably "unknown error" */
+    sqlite3_finalize(db_info->stmt);
+    db_info->stmt = NULL;
     return(SCM_BOOL_F);
   }
-  else{
-    SET_DBH_STATUS(1, sqlite3_errmsg((* db_info).sqlite3_obj)); //probably "unknown error"
-    sqlite3_finalize(STMT);
-
-    return(SCM_BOOL_F);
-  }
-
-  SET_DBH_STATUS(0, "row fetched");
-
-#undef STMT
-
+  dbh->status = status_cons(0, "row fetched");
   return(res_row);
 }
