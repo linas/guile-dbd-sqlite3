@@ -64,6 +64,8 @@ b0 __sqlite3_make_g_db_handle(gdbi_db_handle_t * dbh) {
     &((* db_info).sqlite3_obj)
     );
 
+  free(db_name);
+
   if(tres != SQLITE_OK) {
     SET_DBH_STATUS(1, sqlite3_errmsg((* db_info).sqlite3_obj));
     (* db_info).sqlite3_obj = 0;
@@ -94,6 +96,8 @@ b0 __sqlite3_close_g_db_handle(gdbi_db_handle_t * dbh) {
 
   gdbi_sqlite3_ds_t * db_info = (* dbh).db_info;
 
+  if((* db_info).stmt) sqlite3_finalize((* db_info).stmt);
+
   if((* db_info).sqlite3_obj == 0) {
     if(!(* dbh).in_free) {
       SET_DBH_STATUS(1, "dbi connection already closed");
@@ -104,9 +108,7 @@ b0 __sqlite3_close_g_db_handle(gdbi_db_handle_t * dbh) {
     }
   }
 
-  sqlite3_close(
-    (* db_info).sqlite3_obj
-    );
+  sqlite3_close((* db_info).sqlite3_obj);
 
   free((* dbh).db_info);
   (* dbh).db_info = 0;
@@ -152,6 +154,7 @@ b0 __sqlite3_query_g_db_handle(gdbi_db_handle_t * dbh, b8 * query_str) {
   }
   sqlite3_reset(stmt);
 
+  if((* db_info).stmt) sqlite3_finalize((* db_info).stmt);
   (* db_info).stmt = stmt;
   SET_DBH_STATUS(0, "query ok");
 
@@ -229,6 +232,7 @@ SCM __sqlite3_getrow_g_db_handle(gdbi_db_handle_t * dbh) {
   }
   else if(tres == SQLITE_DONE) {
     SET_DBH_STATUS(1, "no more rows to get");
+    sqlite3_finalize(STMT);
 
     return(SCM_BOOL_F);
   }
