@@ -164,9 +164,11 @@ SCM __sqlite3_getrow_g_db_handle(gdbi_db_handle_t *dbh)
 				= scm_append(scm_list_2(res_row,
 						scm_list_1(scm_cons(scm_from_locale_string(sqlite3_column_name(db_info->stmt,
 										cur_col_idx)),
-						    cur_val))));
+								cur_val))));
       cur_col_idx++;
     }
+  } else if (tres == SQLITE_DONE) {
+    dbh->status = status_cons(1, "no more rows to get");
     return(SCM_BOOL_F);
   } else {
     dbh->status = status_cons(1, sqlite3_errmsg(db_info->sqlite3_obj));
