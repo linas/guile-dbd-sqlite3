@@ -23,14 +23,14 @@ void __sqlite3_make_g_db_handle(gdbi_db_handle_t *dbh);
 void __sqlite3_close_g_db_handle(gdbi_db_handle_t *dbh);
 void __sqlite3_query_g_db_handle(gdbi_db_handle_t *dbh, char *query_str);
 SCM __sqlite3_getrow_g_db_handle(gdbi_db_handle_t *dbh);
-SCM status_cons(int code, char *message);
+SCM status_cons(int code, const char *message);
 
 typedef struct{
   sqlite3 *sqlite3_obj;
   sqlite3_stmt *stmt;
 } gdbi_sqlite3_ds_t;
 
-SCM status_cons(int code, char *message)
+SCM status_cons(int code, const char *message)
 {
   return(scm_cons(scm_from_int(code), scm_from_locale_string(message)));
 }
@@ -92,7 +92,7 @@ void __sqlite3_query_g_db_handle(gdbi_db_handle_t *dbh, char *query_str)
   db_info->stmt = NULL;
   sqlite3_stmt *stmt;
   char tres = sqlite3_prepare_v2(db_info->sqlite3_obj,
-		query_str, -1, &stmt, NULL);
+    query_str, -1, &stmt, NULL);
   if (tres != SQLITE_OK) {
     dbh->status = status_cons(1, sqlite3_errmsg(db_info->sqlite3_obj));
     return;
@@ -131,27 +131,27 @@ SCM __sqlite3_getrow_g_db_handle(gdbi_db_handle_t *dbh)
       col_type = sqlite3_column_type(db_info->stmt, cur_col_idx);
       if (col_type == SQLITE_INTEGER) {
         cur_val = scm_from_long(sqlite3_column_int(db_info->stmt,
-						cur_col_idx));
+            cur_col_idx));
       } else if (col_type == SQLITE_FLOAT) {
         cur_val = scm_from_double(sqlite3_column_double(db_info->stmt,
-						cur_col_idx));
+            cur_col_idx));
       } else if (col_type == SQLITE_TEXT) {
         cur_val = scm_from_locale_string(sqlite3_column_text(db_info->stmt,
-						cur_col_idx));
+            cur_col_idx));
       } else if (col_type == SQLITE_BLOB) {
         SCM blob_size = scm_from_int32(sqlite3_column_bytes(db_info->stmt,
-						cur_col_idx));
+            cur_col_idx));
         cur_val = scm_make_u8vector(blob_size, 0);
         if (blob_size > 0) {
           char *blob = (char *)sqlite3_column_blob(db_info->stmt, cur_col_idx);
           scm_t_array_handle array_handle;
           size_t val_size, i; ssize_t val_step;
           scm_t_uint8 *elt = scm_u8vector_writable_elements(cur_val,
-						&array_handle,
-						&val_size,
-						&val_step);
+            &array_handle,
+            &val_size,
+            &val_step);
           for (i = 0; i < val_size; i++, elt += val_step)
-						elt = *(blob + i);
+            *elt = *(blob + i);
           scm_array_handle_release(&array_handle);
         }
       } else if (col_type == SQLITE_NULL) {
@@ -161,10 +161,10 @@ SCM __sqlite3_getrow_g_db_handle(gdbi_db_handle_t *dbh)
         return(SCM_EOL);
       }
       res_row
-				= scm_append(scm_list_2(res_row,
-						scm_list_1(scm_cons(scm_from_locale_string(sqlite3_column_name(db_info->stmt,
-										cur_col_idx)),
-								cur_val))));
+        = scm_append(scm_list_2(res_row,
+            scm_list_1(scm_cons(scm_from_locale_string(sqlite3_column_name(db_info->stmt,
+                    cur_col_idx)),
+                cur_val))));
       cur_col_idx++;
     }
   } else if (tres == SQLITE_DONE) {
