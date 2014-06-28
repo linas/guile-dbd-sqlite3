@@ -49,9 +49,9 @@ void __sqlite3_make_g_db_handle(gdbi_db_handle_t *dbh)
     dbh->status = status_cons(1, "out of memory");
     return;
   }
-  char tres = sqlite3_open(db_name, &(db_info->sqlite3_obj));
+  char s = sqlite3_open(db_name, &(db_info->sqlite3_obj));
   free(db_name);
-  if (tres != SQLITE_OK) {
+  if (s != SQLITE_OK) {
     dbh->status = status_cons(1, sqlite3_errmsg(db_info->sqlite3_obj));
     free(db_info);
     dbh->db_info = NULL;
@@ -92,15 +92,15 @@ void __sqlite3_query_g_db_handle(gdbi_db_handle_t *dbh, char *query_str)
   sqlite3_finalize(db_info->stmt);
   db_info->stmt = NULL;
   sqlite3_stmt *stmt;
-  char tres = sqlite3_prepare_v2(db_info->sqlite3_obj,
+  char s = sqlite3_prepare_v2(db_info->sqlite3_obj,
     query_str, -1, &stmt, NULL);
-  if (tres != SQLITE_OK) {
+  if (s != SQLITE_OK) {
     dbh->status = status_cons(1, sqlite3_errmsg(db_info->sqlite3_obj));
     return;
   }
   /* test if sqlite3_step runs successful */
-  tres = sqlite3_step(stmt);
-  if ((tres != SQLITE_ROW) && (tres != SQLITE_DONE) && (tres != SQLITE_OK)) {
+  s = sqlite3_step(stmt);
+  if ((s != SQLITE_ROW) && (s != SQLITE_DONE) && (s != SQLITE_OK)) {
     dbh->status = status_cons(1, sqlite3_errmsg(db_info->sqlite3_obj));
     return;
   }
@@ -122,9 +122,9 @@ SCM __sqlite3_getrow_g_db_handle(gdbi_db_handle_t *dbh)
   }
   SCM res_row = SCM_EOL;
   SCM cur_val;
-  char tres = sqlite3_step(db_info->stmt);
+  char s = sqlite3_step(db_info->stmt);
   /* row to scheme list */
-  if (tres == SQLITE_ROW) {
+  if (s == SQLITE_ROW) {
     int col_count = sqlite3_column_count(db_info->stmt);
     int cur_col_idx = 0;
     char col_type;
@@ -168,7 +168,7 @@ SCM __sqlite3_getrow_g_db_handle(gdbi_db_handle_t *dbh)
                 cur_val))));
       cur_col_idx++;
     }
-  } else if (tres == SQLITE_DONE) {
+  } else if (s == SQLITE_DONE) {
     dbh->status = status_cons(1, "no more rows to get");
     return(SCM_BOOL_F);
   } else {
