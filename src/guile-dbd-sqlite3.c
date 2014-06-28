@@ -50,6 +50,7 @@ void __sqlite3_make_g_db_handle(gdbi_db_handle_t *dbh)
     return;
   }
   char tres = sqlite3_open(db_name, &(db_info->sqlite3_obj));
+  free(db_name);
   if (tres != SQLITE_OK) {
     dbh->status = status_cons(1, sqlite3_errmsg(db_info->sqlite3_obj));
     free(db_info);
